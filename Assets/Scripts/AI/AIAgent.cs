@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using AI.Core;
 using AI.States;
+using AI.GPU;
 
 namespace AI
 {
@@ -59,6 +60,10 @@ namespace AI
         private float origSpeed;
         private float origDamage;
         private Vector3 origScale;
+        private float origAttackRange;
+        
+        private Coroutine scaleCoroutine;
+        public float tankScaleDuration = 0.5f;
 
         private void OnValidate()
         {
@@ -76,6 +81,12 @@ namespace AI
             ConfigureStats();
             currentHealth = maxHealth;
             StoreOriginalStats();
+
+            // Register to GPU Manager for Batched Rendering
+            if (GPUInstancedArmyManager.Instance != null)
+            {
+                GPUInstancedArmyManager.Instance.RegisterAgent(this);
+            }
 
             // --- NavMesh Avoidance & Spacing Setup ---
             navAgent.stoppingDistance = attackRange * 0.8f; // Stop just before attack range
@@ -110,6 +121,9 @@ namespace AI
             {
                 // Caster defaults if not set
                 if (attackRange < 5f) attackRange = 10f;
+                // Casters shouldn't wait 2.4s to spawn the projectile, their animation hand-raise is fast.
+                // The projectile has its own travel time to delay damage.
+                if (attackDelay > 1.0f) attackDelay = 0.6f;
             }
             
             // Ensure they can see enemies across the map if needed, 
@@ -124,6 +138,7 @@ namespace AI
             if (navAgent != null) origSpeed = navAgent.speed;
             origDamage = damage;
             origScale = transform.localScale;
+            origAttackRange = attackRange;
         }
 
         private void Update()
@@ -181,36 +196,13 @@ namespace AI
 
             foreach (var other in allAgents)
             {
-                // check if enemy, not dead, not self, and exists
                 if (other != null && other != this && other.team != this.team && !other.IsDead)
                 {
-                    // Check if there is a clear path via NavMesh (prevents targeting through solid walls if your arena has them)
-                    UnityEngine.AI.NavMeshPath path = new UnityEngine.AI.NavMeshPath();
-                    if (navAgent.CalculatePath(other.transform.position, path) && path.status == UnityEngine.AI.NavMeshPathStatus.PathComplete)
+                    float d = Vector3.Distance(transform.position, other.transform.position);
+                    if (d < closestDist)
                     {
-                        float d = Vector3.Distance(transform.position, other.transform.position);
-                        if (d < closestDist)
-                        {
-                            closestDist = d;
-                            bestTarget = other.transform;
-                        }
-                    }
-                }
-            }
-            
-            // Fallback: If no valid path is found but they exist, just target the closest one anyway to prevent freezing
-            if (bestTarget == null)
-            {
-                foreach (var other in allAgents)
-                {
-                    if (other != null && other != this && other.team != this.team && !other.IsDead)
-                    {
-                        float d = Vector3.Distance(transform.position, other.transform.position);
-                        if (d < closestDist)
-                        {
-                            closestDist = d;
-                            bestTarget = other.transform;
-                        }
+                        closestDist = d;
+                        bestTarget = other.transform;
                     }
                 }
             }
@@ -256,6 +248,12 @@ namespace AI
         {
             IsDead = true;
             if (aiAnimator != null) aiAnimator.PlayDeath();
+            
+            if (GPUInstancedArmyManager.Instance != null)
+            {
+                // Unregister from batched rendering (or keep if you want bodies to remain rendered)
+                // GPUInstancedArmyManager.Instance.UnregisterAgent(this);
+            }
             
             // Disable logic
             if (navAgent != null) navAgent.enabled = false;
@@ -331,8 +329,16 @@ namespace AI
             skillStartTime = Time.time;
             lastTankSkillTime = Time.time;
             
-            // Grow 3x original scale
-            transform.localScale = origScale * 3f;
+            // Smooth grow to 3x original scale
+            if (scaleCoroutine != null) StopCoroutine(scaleCoroutine);
+            scaleCoroutine = StartCoroutine(LerpScale(transform.localScale, origScale * 3f, tankScaleDuration));
+            
+            // Scale attack range and stopping distance with body size
+            attackRange = origAttackRange * 3f;
+            if (navAgent != null)
+            {
+                navAgent.stoppingDistance = attackRange * 0.8f;
+            }
             
             // Max HP x 3 and heal to full
             maxHealth = origMaxHealth * 3f;
@@ -372,8 +378,16 @@ namespace AI
         {
             isSkillActive = false;
             
-            // Revert scale
-            transform.localScale = origScale;
+            // Smooth shrink back to original scale
+            if (scaleCoroutine != null) StopCoroutine(scaleCoroutine);
+            scaleCoroutine = StartCoroutine(LerpScale(transform.localScale, origScale, tankScaleDuration));
+            
+            // Revert attack range and stopping distance
+            attackRange = origAttackRange;
+            if (navAgent != null)
+            {
+                navAgent.stoppingDistance = attackRange * 0.8f;
+            }
             
             // Revert max health. If current health is now higher than the original max, clamp it down.
             maxHealth = origMaxHealth;
@@ -384,6 +398,19 @@ namespace AI
             if (navAgent != null) navAgent.speed = origSpeed;
             
             Debug.Log($"{name}'s skill duration ended. Stats reverted.");
+        }
+
+        private System.Collections.IEnumerator LerpScale(Vector3 from, Vector3 to, float duration)
+        {
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+                transform.localScale = Vector3.Lerp(from, to, t);
+                yield return null;
+            }
+            transform.localScale = to;
         }
     }
 }

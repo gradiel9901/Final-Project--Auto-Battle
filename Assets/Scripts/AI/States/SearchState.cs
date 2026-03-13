@@ -36,6 +36,24 @@ namespace AI.States
             // If we reached our current search point, pick a new random nearby point to wander
             if (!agent.navAgent.pathPending && agent.navAgent.remainingDistance < 1f)
             {
+                // If there are literally no enemies left on the map, rest in IdleState
+                AIAgent[] allAgents = Object.FindObjectsByType<AIAgent>(FindObjectsSortMode.None);
+                bool enemiesExist = false;
+                foreach (var other in allAgents)
+                {
+                    if (other != null && other != agent && other.team != agent.team && !other.IsDead)
+                    {
+                        enemiesExist = true;
+                        break;
+                    }
+                }
+
+                if (!enemiesExist)
+                {
+                    stateMachine.ChangeState(new IdleState(agent, stateMachine));
+                    return;
+                }
+
                 // Generate a random point within a 15 unit radius to patrol/wander to
                 Vector2 randomCircle = Random.insideUnitCircle * 15f;
                 Vector3 randomDirection = new Vector3(randomCircle.x, 0, randomCircle.y);

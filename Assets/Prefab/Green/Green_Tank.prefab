@@ -78,9 +78,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: b1f2bd3ed9845344ab395b1b44e19d69, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6352211512247976662}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: b1f2bd3ed9845344ab395b1b44e19d69, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1454447634325236354}
   m_SourcePrefab: {fileID: 100100000, guid: b1f2bd3ed9845344ab395b1b44e19d69, type: 3}
 --- !u!1 &4830126677115429997 stripped
 GameObject:
@@ -196,8 +193,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AI.AIAgent
   team: 1
   unitType: 3
-  maxHealth: 100
-  damage: 10
+  maxHealth: 300
+  damage: 15
   attackRange: 2
   attackRate: 3
   attackDelay: 2.433
@@ -215,18 +212,4 @@ MonoBehaviour:
   aiAnimator: {fileID: 5886316998299282400}
   currentTarget: {fileID: 0}
   currentHealth: 0
---- !u!114 &1454447634325236354
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4830126677115429997}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5fe6d6e5c229047459075e297042a73b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::VFX.TeamVisualFX
-  elementOverride: 2
-  auraRadius: 1
-  particleDensityMultiplier: 1
+  tankScaleDuration: 0.5

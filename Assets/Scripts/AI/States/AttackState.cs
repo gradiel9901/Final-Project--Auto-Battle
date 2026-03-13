@@ -11,14 +11,13 @@ namespace AI.States
 
         public override void Enter()
         {
-            // Instead of fully hard-stopping the agent, we just tell it its destination is itself.
-            // This allows the local avoidance system to still push the unit slightly if overcrowded.
+            // Stop moving — let local avoidance nudge slightly if crowded
             agent.navAgent.SetDestination(agent.transform.position);
-            
-            // Ensure we aren't rubbing against them. 
-            // Note: NavMeshAgent might slide a bit, but this helps logic.
-            
-            // Look at target
+
+            // Switch to idle immediately so the run animation doesn't linger
+            if (agent.aiAnimator != null) agent.aiAnimator.PlayIdle();
+
+            // Face target on arrival
             if (agent.currentTarget != null)
             {
                 agent.transform.LookAt(agent.currentTarget.position);
@@ -35,19 +34,26 @@ namespace AI.States
             }
 
             float dist = Vector3.Distance(agent.transform.position, agent.currentTarget.position);
-            if (dist > agent.attackRange + 0.5f) // Buffer to prevent jitter
+            // Must be slightly higher than ChaseState's entry threshold (which is 1.2f) to prevent state-looping
+            if (dist > agent.attackRange * 1.25f) 
             {
                 stateMachine.ChangeState(new ChaseState(agent, stateMachine));
                 return;
             }
 
-            // Keep looking at target
+            // Keep facing target smoothly
             Vector3 direction = (agent.currentTarget.position - agent.transform.position).normalized;
             direction.y = 0;
             if (direction != Vector3.zero)
             {
                 Quaternion lookRotation = Quaternion.LookRotation(direction);
                 agent.transform.rotation = Quaternion.Slerp(agent.transform.rotation, lookRotation, Time.deltaTime * 5f);
+            }
+
+            // Once the attack swing finishes, return to idle stance
+            if (agent.aiAnimator != null && agent.aiAnimator.HasFinishedAttack())
+            {
+                agent.aiAnimator.PlayIdle();
             }
 
             // Perform Attack
